@@ -972,14 +972,53 @@ check_potential_conflicts() {
         log_info "Conda is installed"
     else
         log_warning "Conda is not installed, attempting to install it automatically..."
-        # Check if Homebrew is available now
-        if command -v brew &>/dev/null; then
-            if ! install_conda; then
-                log_error "Failed to install Conda automatically"
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS: Use Homebrew
+            if command -v brew &>/dev/null; then
+                if ! install_conda; then
+                    log_error "Failed to install Conda automatically"
+                    return 1
+                fi
+            else
+                log_error "Cannot install Conda on macOS: Homebrew is required but not available"
                 return 1
             fi
+        elif [[ "$(uname)" == "Linux" ]]; then
+            # Linux: Download and install Miniconda directly
+            log_info "Installing Miniconda on Linux..."
+            
+            # Download Miniconda installer
+            local miniconda_installer="/tmp/Miniconda3-latest-Linux-x86_64.sh"
+            log_info "Downloading Miniconda installer..."
+            if ! curl -sSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o "$miniconda_installer"; then
+                log_error "Failed to download Miniconda installer"
+                return 1
+            fi
+            
+            # Install Miniconda
+            log_info "Running Miniconda installer..."
+            if ! bash "$miniconda_installer" -b -p "$HOME/miniconda3"; then
+                log_error "Failed to install Miniconda"
+                return 1
+            fi
+            
+            # Add to PATH for current session
+            log_info "Adding Miniconda to PATH..."
+            export PATH="$HOME/miniconda3/bin:$PATH"
+            
+            # Initialize conda
+            log_info "Initializing conda..."
+            if ! "$HOME/miniconda3/bin/conda" init bash; then
+                log_error "Failed to initialize conda"
+                return 1
+            fi
+            
+            # Source bashrc to apply changes
+            source "$HOME/.bashrc"
+            
+            log_success "Miniconda installed successfully"
         else
-            log_error "Cannot install Conda: Homebrew is required but not available"
+            log_error "Cannot install Conda: Unsupported operating system"
             return 1
         fi
     fi
