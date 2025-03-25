@@ -55,7 +55,16 @@ echo "Initializing ChromaDB..."
 python docker/app/init_chroma.py
 
 # Get local IP address (excluding localhost and docker networks)
-LOCAL_IP=$(ifconfig | grep "inet " | grep -v "127.0.0.1" | grep "192.168" | awk '{print $2}' | head -n 1)
+if [[ "$(uname)" == "Darwin" ]]; then
+    # macOS uses ifconfig
+    LOCAL_IP=$(ifconfig | grep "inet " | grep -v "127.0.0.1" | grep "192.168" | awk '{print $2}' | head -n 1)
+elif [[ "$(uname)" == "Linux" ]]; then
+    # Linux uses ip command
+    LOCAL_IP=$(ip addr show | grep "inet " | grep -v "127.0.0.1" | grep "192.168" | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+else
+    # Fallback to localhost
+    LOCAL_IP="localhost"
+fi
 
 # Start Flask application
 echo "Starting Flask application..."

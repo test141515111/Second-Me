@@ -134,6 +134,31 @@ get_conda_env_name() {
     return 0
 }
 
+# Install required Linux dependencies
+install_linux_dependencies() {
+    log_section "INSTALLING LINUX DEPENDENCIES"
+    
+    if ! command -v apt-get &>/dev/null; then
+        log_error "apt-get not found, this function only works on Debian/Ubuntu"
+        return 1
+    fi
+    
+    log_info "Updating package lists..."
+    if ! sudo apt-get update; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+    
+    log_info "Installing required packages..."
+    if ! sudo apt-get install -y build-essential cmake python3-pip sqlite3 nodejs npm; then
+        log_error "Failed to install required packages"
+        return 1
+    fi
+    
+    log_success "Linux dependencies installed successfully"
+    return 0
+}
+
 # Setup and configure package managers (npm)
 setup_npm() {
     log_step "Setting up npm package manager"
@@ -142,8 +167,18 @@ setup_npm() {
     log_info "Checking npm installation..."
     if ! command -v npm &>/dev/null; then
         log_warning "npm not found - installing Node.js and npm"
-        if ! brew install node; then
-            log_error "Failed to install Node.js and npm"
+        if [[ "$(uname)" == "Darwin" ]]; then
+            if ! brew install node; then
+                log_error "Failed to install Node.js and npm"
+                return 1
+            fi
+        elif [[ "$(uname)" == "Linux" ]]; then
+            if ! sudo apt-get install -y nodejs npm; then
+                log_error "Failed to install Node.js and npm"
+                return 1
+            fi
+        else
+            log_error "Unsupported operating system for npm installation"
             return 1
         fi
         
@@ -426,9 +461,73 @@ goto_dependency_installation() {
     return 0
 }
 
+# Ensure GCC 12 is installed for llama.cpp compatibility
+ensure_gcc_compatibility() {
+    log_step "Checking GCC compatibility for llama.cpp"
+    
+    if [[ "$(uname)" != "Linux" ]]; then
+        return 0  # Not Linux, no need to check
+    fi
+    
+    # Check if gcc-12 is installed
+    if ! command -v gcc-12 &>/dev/null; then
+        log_warning "GCC 12 not found, attempting to install..."
+        
+        # Add Ubuntu toolchain PPA
+        if ! sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test; then
+            log_error "Failed to add toolchain PPA"
+            return 1
+        fi
+        
+        # Update package lists
+        if ! sudo apt-get update; then
+            log_error "Failed to update package lists"
+            return 1
+        fi
+        
+        # Install GCC 12
+        if ! sudo apt-get install -y gcc-12 g++-12; then
+            log_error "Failed to install GCC 12"
+            return 1
+        fi
+        
+        # Set as default for this session
+        if ! sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 120 --slave /usr/bin/g++ g++ /usr/bin/g++-12; then
+            log_error "Failed to set GCC 12 as default"
+            return 1
+        fi
+        
+        log_success "GCC 12 installed and configured successfully"
+    else
+        log_info "GCC 12 is already installed"
+    fi
+    
+    return 0
+}
+
 # Build llama.cpp
 build_llama() {
     log_section "BUILDING LLAMA.CPP"
+    
+    # Check for cmake first
+    if ! command -v cmake &>/dev/null; then
+        log_error "cmake is required but not found"
+        log_error "Please install cmake first:"
+        if [[ "$(uname)" == "Darwin" ]]; then
+            log_error "  brew install cmake"
+        elif [[ "$(uname)" == "Linux" ]]; then
+            log_error "  sudo apt-get install cmake"
+        fi
+        return 1
+    fi
+    
+    # Ensure GCC compatibility on Linux
+    if [[ "$(uname)" == "Linux" ]]; then
+        if ! ensure_gcc_compatibility; then
+            log_error "Failed to ensure GCC compatibility for llama.cpp"
+            return 1
+        fi
+    fi
     
     LLAMA_LOCAL_ZIP="dependencies/llama.cpp.zip"
     
@@ -569,7 +668,18 @@ build_frontend() {
 init_conda_env_if_necessary() {
     log_section "SETTING UP SHELL INTEGRATION"
     
-    local config_file="$HOME/.zshrc"
+    local current_shell=$(basename "$SHELL")
+    local config_file=""
+    
+    if [[ "$current_shell" == "zsh" ]]; then
+        config_file="$HOME/.zshrc"
+    elif [[ "$current_shell" == "bash" ]]; then
+        config_file="$HOME/.bashrc"
+    else
+        log_warning "Unsupported shell: $current_shell, using .bashrc"
+        config_file="$HOME/.bashrc"
+    fi
+    
     log_info "Will update shell configuration in: $config_file"
     
     # Add Conda
@@ -578,7 +688,7 @@ init_conda_env_if_necessary() {
         # Check if already initialized
         if ! grep -q "conda initialize" "$config_file" 2>/dev/null; then
             log_info "Conda not initialized, running conda init"
-            conda init zsh
+            conda init "$current_shell"
             log_success "Added Conda initialization to shell configuration"
             
             # Source the updated config
@@ -655,29 +765,43 @@ check_system_requirements() {
     local current_shell=$(basename "$SHELL")
     log_info "Detected shell: $current_shell"
     
-    # Only support zsh
-    if [[ "$current_shell" != "zsh" ]]; then
-        log_error "Only zsh shell is supported"
-        return 1
+    # Support both zsh and bash on Linux
+    if [[ "$current_shell" != "zsh" && "$current_shell" != "bash" ]]; then
+        log_warning "Only zsh and bash shells are fully supported"
+        log_warning "Some features may not work correctly with $current_shell"
     fi
 
-    # Check if running on macOS
-    if [[ "$(uname)" != "Darwin" ]]; then
-        log_error "This script only supports macOS"
-        return 1
-    fi
-    
-    local macos_version=$(sw_vers -productVersion)
-    log_info "Detected macOS version: $macos_version"
-    
-    local major_version=$(echo "$macos_version" | cut -d. -f1)
-    if [[ "$major_version" -lt 14 ]]; then
-        log_error "This script requires macOS 14 (Sonoma) or later. Your version: $macos_version"
+    # Check operating system
+    if [[ "$(uname)" == "Darwin" ]]; then
+        log_info "Detected macOS system"
+        local macos_version=$(sw_vers -productVersion)
+        log_info "macOS version: $macos_version"
+        
+        local major_version=$(echo "$macos_version" | cut -d. -f1)
+        if [[ "$major_version" -lt 14 ]]; then
+            log_warning "This script was designed for macOS 14 (Sonoma) or later. Your version: $macos_version"
+            log_warning "Some features may not work correctly"
+        fi
+    elif [[ "$(uname)" == "Linux" ]]; then
+        log_info "Detected Linux system"
+        local linux_distro=$(lsb_release -ds 2>/dev/null || cat /etc/*release | grep PRETTY_NAME | cut -d= -f2- | tr -d '"')
+        log_info "Linux distribution: $linux_distro"
+    else
+        log_error "Unsupported operating system: $(uname)"
         return 1
     fi
 
     # Check shell config file
-    local config_file="$HOME/.zshrc"
+    local config_file=""
+    if [[ "$current_shell" == "zsh" ]]; then
+        config_file="$HOME/.zshrc"
+    elif [[ "$current_shell" == "bash" ]]; then
+        config_file="$HOME/.bashrc"
+    else
+        log_warning "Unsupported shell: $current_shell, using .bashrc"
+        config_file="$HOME/.bashrc"
+    fi
+    
     if ! ensure_shell_config "$config_file"; then
         log_error "Failed to setup shell configuration file"
         return 1
@@ -689,8 +813,8 @@ check_system_requirements() {
     local system_arch=$(uname -m)
     log_info "Detected system architecture: $system_arch"
     
-    # Check installed Homebrew architecture
-    if command -v brew &>/dev/null; then
+    # Check installed Homebrew architecture (macOS only)
+    if [[ "$(uname)" == "Darwin" ]] && command -v brew &>/dev/null; then
         local brew_path=$(command -v brew)
         local brew_dir=$(dirname "$(dirname "$brew_path")")
         
@@ -876,8 +1000,15 @@ check_and_install_cmake() {
                 return 1
             fi
             log_success "cmake installed successfully"
+        elif command -v apt-get &>/dev/null; then
+            log_info "Installing cmake using apt..."
+            if ! sudo apt-get install -y cmake; then
+                log_error "Failed to install cmake using apt"
+                return 1
+            fi
+            log_success "cmake installed successfully"
         else
-            log_error "Cannot install cmake: Homebrew is required but not available"
+            log_error "Cannot install cmake: No supported package manager found"
             return 1
         fi
     else
@@ -910,8 +1041,13 @@ parse_args() {
     done
 }
 
-# Add Homebrew to PATH for the current session
+# Add Homebrew to PATH for the current session - macOS only
 add_homebrew_to_path() {
+    if [[ "$(uname)" != "Darwin" ]]; then
+        log_info "Not on macOS, skipping Homebrew PATH setup"
+        return 0
+    }
+    
     log_info "Adding Homebrew to PATH..."
     
     local brew_path="/opt/homebrew/bin"
@@ -966,6 +1102,14 @@ main() {
     
     # Start installation process
     log_section "Starting installation"
+    
+    # Install Linux specific dependencies if needed
+    if [[ "$(uname)" == "Linux" ]]; then
+        if ! install_linux_dependencies; then
+            log_error "Failed to install Linux dependencies"
+            exit 1
+        fi
+    fi
     
     # 1. Setup Conda environment
     if ! activate_python_env; then
