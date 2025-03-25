@@ -1000,19 +1000,24 @@ check_potential_conflicts() {
             # Linux: Download and install Miniconda directly
             log_info "Installing Miniconda on Linux..."
             
-            # Download Miniconda installer
-            local miniconda_installer="/tmp/Miniconda3-latest-Linux-x86_64.sh"
-            log_info "Downloading Miniconda installer..."
-            if ! curl -sSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o "$miniconda_installer"; then
-                log_error "Failed to download Miniconda installer"
-                return 1
-            fi
-            
-            # Install Miniconda
-            log_info "Running Miniconda installer..."
-            if ! bash "$miniconda_installer" -b -p "$HOME/miniconda3"; then
-                log_error "Failed to install Miniconda"
-                return 1
+            # Check if Miniconda is already installed
+            if [[ -d "$HOME/miniconda3" ]]; then
+                log_info "Miniconda installation detected at $HOME/miniconda3"
+            else
+                # Download Miniconda installer
+                local miniconda_installer="/tmp/Miniconda3-latest-Linux-x86_64.sh"
+                log_info "Downloading Miniconda installer..."
+                if ! curl -sSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o "$miniconda_installer"; then
+                    log_error "Failed to download Miniconda installer"
+                    return 1
+                fi
+                
+                # Install Miniconda
+                log_info "Running Miniconda installer..."
+                if ! bash "$miniconda_installer" -b -p "$HOME/miniconda3"; then
+                    log_error "Failed to install Miniconda"
+                    return 1
+                fi
             fi
             
             # Add to PATH for current session
