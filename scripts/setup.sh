@@ -1046,7 +1046,7 @@ add_homebrew_to_path() {
     if [[ "$(uname)" != "Darwin" ]]; then
         log_info "Not on macOS, skipping Homebrew PATH setup"
         return 0
-    }
+    fi
     
     log_info "Adding Homebrew to PATH..."
     
