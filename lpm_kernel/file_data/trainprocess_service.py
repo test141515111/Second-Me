@@ -45,6 +45,7 @@ class ProcessStep(Enum):
     TRAIN = "train"
     MERGE_WEIGHTS = "merge_weights"
     CONVERT_MODEL = "convert_model"
+    BUILD_SECOND_BRAIN = "build_second_brain"
 
     @classmethod
     def get_ordered_steps(cls) -> List["ProcessStep"]:
@@ -60,6 +61,7 @@ class ProcessStep(Enum):
             cls.DECODE_PREFERENCE_PATTERNS,
             cls.REINFORCE_IDENTITY,
             cls.AUGMENT_CONTENT_RETENTION,
+            cls.BUILD_SECOND_BRAIN,
             cls.TRAIN,
             cls.MERGE_WEIGHTS,
             cls.CONVERT_MODEL,
@@ -82,6 +84,7 @@ class ProcessStep(Enum):
             "train": "train",
             "merge_weights": "merge_weights",
             "convert_model": "convert_model",
+            "build_second_brain": "build_second_brain",
         }
         return method_name_mapping[self.value]
 
@@ -171,6 +174,7 @@ class Progress:
             
             ProcessStep.EXTRACT_DIMENSIONAL_TOPICS: "synthesize_your_life_narrative",
             ProcessStep.MAP_ENTITY_NETWORK: "synthesize_your_life_narrative",
+            ProcessStep.BUILD_SECOND_BRAIN: "synthesize_your_life_narrative",
             
             ProcessStep.DECODE_PREFERENCE_PATTERNS: "prepare_training_data_for_deep_comprehension",
             ProcessStep.REINFORCE_IDENTITY: "prepare_training_data_for_deep_comprehension",
@@ -603,6 +607,45 @@ class TrainProcessService:
             self.logger.error(f"Failed to augment content retention: {str(e)}")
             self.progress.mark_step_failed(ProcessStep.AUGMENT_CONTENT_RETENTION)
             # Clean up resources even if there was an error
+            self._cleanup_resources()
+            return False
+            
+    def build_second_brain(self) -> bool:
+        """Build Second Brain from processed data"""
+        try:
+            # Mark step as in progress
+            self.progress.mark_step_in_progress(ProcessStep.BUILD_SECOND_BRAIN)
+            self.logger.info("Starting Second Brain construction...")
+            
+            # Get or prepare L2 data
+            self._prepare_l2_data()
+            
+            # Create L2Generator instance
+            l2_generator = L2Generator(data_path=os.path.join(os.getcwd(), "resources"))
+            
+            # Build Second Brain
+            result = l2_generator.build_second_brain(
+                self.l2_data["notes"],
+                self.l2_data["basic_info"],
+                self.l2_data["data_output_base_dir"],
+                self.l2_data["topics_path"],
+                self.l2_data["entitys_path"],
+                self.l2_data["graph_path"],
+                self.l2_data["config_path"]
+            )
+            
+            if result["status"] == "success":
+                self.progress.mark_step_completed(ProcessStep.BUILD_SECOND_BRAIN)
+                self.logger.info("Second Brain construction completed successfully")
+                return True
+            else:
+                self.logger.error(f"Second Brain construction failed: {result['message']}")
+                self.progress.mark_step_failed(ProcessStep.BUILD_SECOND_BRAIN)
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Second Brain construction failed: {str(e)}")
+            self.progress.mark_step_failed(ProcessStep.BUILD_SECOND_BRAIN)
             self._cleanup_resources()
             return False
 
