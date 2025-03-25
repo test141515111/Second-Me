@@ -150,8 +150,21 @@ install_linux_dependencies() {
     fi
     
     log_info "Installing required packages..."
-    if ! sudo apt-get install -y build-essential cmake python3-pip sqlite3 nodejs npm; then
-        log_error "Failed to install required packages"
+    # Install packages except nodejs and npm
+    if ! sudo apt-get install -y build-essential cmake python3-pip sqlite3; then
+        log_error "Failed to install basic required packages"
+        return 1
+    fi
+    
+    # Install nodejs using nodesource
+    log_info "Installing Node.js using NodeSource..."
+    if ! curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -; then
+        log_error "Failed to setup NodeSource repository"
+        return 1
+    fi
+    
+    if ! sudo apt-get install -y nodejs; then
+        log_error "Failed to install Node.js"
         return 1
     fi
     
