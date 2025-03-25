@@ -53,29 +53,29 @@ check-conda:
 
 # Check environment without installing
 check-env:
-	zsh ./scripts/setup.sh --check-only
+	bash ./scripts/setup.sh --check-only
 
 # Commands that don't require conda environment
 setup:
-	zsh ./scripts/setup.sh
+	bash ./scripts/setup.sh
 
 start:
-	zsh ./scripts/start.sh
+	bash ./scripts/start.sh
 
 stop:
-	zsh ./scripts/stop.sh
+	bash ./scripts/stop.sh
 
 restart:
-	zsh ./scripts/restart.sh
+	bash ./scripts/restart.sh
 
 restart-backend:
-	zsh ./scripts/restart-backend.sh
+	bash ./scripts/restart-backend.sh
 
 restart-force:
-	zsh ./scripts/restart-force.sh
+	bash ./scripts/restart-force.sh
 
 status:
-	zsh ./scripts/status.sh
+	bash ./scripts/status.sh
 
 # Commands that require conda environment
 install: check-conda
