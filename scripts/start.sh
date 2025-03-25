@@ -4,7 +4,11 @@
 VERSION="1.0.0"
 
 # Source conda utilities
-SCRIPT_DIR="$( cd "$( dirname "${0:A}" )" && pwd )"
+if [[ -n "${ZSH_VERSION}" ]]; then
+    SCRIPT_DIR="$( cd "$( dirname "${0:A}" )" && pwd )"
+else
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
 source "$SCRIPT_DIR/conda_utils.sh"
 
 # Color definitions
@@ -207,7 +211,13 @@ start_services() {
     else
         log_info "Using conda environment: ${CONDA_DEFAULT_ENV}"
         # Ensure conda is properly initialized in the subshell
-        nohup zsh -c "source ${conda_sh_path} && conda activate ${CONDA_DEFAULT_ENV} && exec ./scripts/start_local.sh" > logs/start.log 2>&1 &
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # Use zsh on macOS
+            nohup zsh -c "source ${conda_sh_path} && conda activate ${CONDA_DEFAULT_ENV} && exec ./scripts/start_local.sh" > logs/start.log 2>&1 &
+        else
+            # Use bash on Linux
+            nohup bash -c "source ${conda_sh_path} && conda activate ${CONDA_DEFAULT_ENV} && exec ./scripts/start_local.sh" > logs/start.log 2>&1 &
+        fi
     fi
     
     echo $! > run/.backend.pid
