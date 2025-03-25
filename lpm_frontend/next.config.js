@@ -8,7 +8,7 @@ const nextConfig = {
       },
       {
         source: '/api/:path*', // Ensure source starts with `/api/`
-        destination: 'https://user:4b08c68edcd7e31c6c5348cc0c06bb2b@second-me-app-tunnel-1cj46i1n.devinapps.com/api/:path*' // Updated to use deployed backend
+        destination: 'http://127.0.0.1:8002/api/:path*' // Local backend URL
       }
     ];
   },
